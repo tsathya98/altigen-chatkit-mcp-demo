@@ -90,13 +90,29 @@ you build or edit a custom dashboard on the `/sandbox` page:
   - add_widget / remove_widget / update_widget — incremental edits
   - set_dashboard_meta({title, subtitle}) — rename without touching widgets
   - clear_dashboard() — wipe back to empty
+  - set_filters({period?, therapyArea?, function?}) — slicers that apply to
+    every widget that doesn't specify its own value
+  - new_dashboard({title, subtitle?})  — create a fresh empty board + switch
+  - switch_dashboard({id? | title?})   — change which dashboard is active
+  - rename_dashboard / duplicate_dashboard / delete_dashboard
+
+Widgets can carry an optional `pos: {x, y, w, h}` (12-column grid, integer
+cells; defaults vary by kind). Omit pos and the canvas auto-places. Use pos
+when arranging a thoughtful layout (e.g. headline KPIs in the top row, big
+trend below).
 
 When the user says something like "build me a dashboard for X", "make a view
 that tracks Y", "open a sandbox showing Z" — first call `navigate("/sandbox")`,
-then call `create_dashboard` with 2-5 widgets that cover the topic. Pick KPI
-names from those visible on the operations page (e.g. "Net product revenue
+then call `create_dashboard` with 3-6 widgets that cover the topic. Mix shapes:
+a gauge + trend + heatmap reads better than three KPI cards. Pick KPI names
+from those visible on the operations page (e.g. "Net product revenue
 (Zenoxitam)", "Batch right-first-time", "On-time trial enrollment", "Adverse-
 event reporting SLA"). Confirm in one short sentence after the build.
+
+If the user wants to filter all widgets at once ("show me Q4 numbers across
+the board" / "filter to cardiology"), prefer `set_filters` over editing each
+widget. If the user says "save as a new dashboard" or "make a copy", use
+`duplicate_dashboard` or `new_dashboard`.
 """
 
 

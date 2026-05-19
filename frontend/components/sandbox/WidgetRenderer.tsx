@@ -1,13 +1,11 @@
 "use client";
 
-import { ChevronDown, ChevronUp, GripVertical, X } from "lucide-react";
-import { useState } from "react";
+import { Settings2, Trash2, X } from "lucide-react";
 import {
-  moveWidget,
   removeWidget,
-  reorderWidgets,
   type Widget,
 } from "@/lib/sandbox-store";
+import { selectWidget, useSelected } from "@/lib/selection-state";
 import type { Kpi, Product, Trial } from "@/lib/api";
 import { TrendChart } from "../TrendChart";
 import { Compare } from "./widgets/Compare";
@@ -15,13 +13,14 @@ import { Gauge } from "./widgets/Gauge";
 import { Heatmap } from "./widgets/Heatmap";
 import { Sparkline } from "./widgets/Sparkline";
 
+type Filters = { period?: string; therapyArea?: string; function?: string };
+
 type Props = Readonly<{
   widget: Widget;
-  index: number;
-  total: number;
   products?: Product[];
   trials?: Trial[];
   kpis?: Kpi[];
+  filters: Filters;
 }>;
 
 function tone(k: Kpi): "positive" | "warning" | "critical" | "neutral" {
@@ -31,24 +30,32 @@ function tone(k: Kpi): "positive" | "warning" | "critical" | "neutral" {
   return "critical";
 }
 
-export function WidgetRenderer({ widget, index, total, products, trials, kpis }: Props) {
-  let body: React.ReactNode;
+export function WidgetRenderer({ widget, products, trials, kpis, filters }: Props) {
+  let body: React.ReactNode = null;
   let badge = "";
+  const selected = useSelected();
+  const isSelected = selected === widget.id;
+
+  // Effective filter values: widget-level wins over global filter.
+  const eff = {
+    period:      (widget as any).period ?? filters.period ?? "2026-Q1",
+    therapyArea: (widget as any).therapyArea ?? filters.therapyArea,
+    function_:   (widget as any).function_ ?? filters.function,
+  };
 
   switch (widget.kind) {
     case "kpi": {
       badge = "KPI";
-      const period = widget.period ?? "2026-Q1";
-      const k = kpis?.find((x) => x.name === widget.kpiName && x.period === period);
+      const k = kpis?.find((x) => x.name === widget.kpiName && x.period === eff.period);
       if (!kpis) body = <Loading />;
-      else if (!k) body = <NotFound>{widget.kpiName} · {period}</NotFound>;
+      else if (!k) body = <NotFound>{widget.kpiName} · {eff.period}</NotFound>;
       else {
         const t = tone(k);
         const delta = k.target != null ? Math.round((k.value - k.target) * 10) / 10 : null;
         body = (
           <div className="p-5">
             <div className="kicker">{k.function} · {k.period}</div>
-            <div className="text-[13px] text-[var(--bone-soft)] mt-2">{k.name}</div>
+            <div className="text-[13px] text-[var(--bone-soft)] mt-2">{widget.title ?? k.name}</div>
             <div className="mt-3 flex items-baseline gap-2">
               <span className={`hero-num tone-${t}`}>{k.value}</span>
               <span className="font-mono text-[11px] tracking-wider text-[var(--muted)] uppercase">{k.unit}</span>
@@ -72,22 +79,15 @@ export function WidgetRenderer({ widget, index, total, products, trials, kpis }:
     case "trend": {
       badge = "TREND";
       if (!kpis) body = <Loading />;
-      else {
-        body = (
-          <div className="p-1">
-            <TrendChart kpis={kpis} kpiName={widget.kpiName} />
-          </div>
-        );
-      }
+      else body = <div className="p-1 h-full"><TrendChart kpis={kpis} kpiName={widget.kpiName} /></div>;
       break;
     }
 
     case "gauge": {
       badge = "GAUGE";
-      const period = widget.period ?? "2026-Q1";
-      const k = kpis?.find((x) => x.name === widget.kpiName && x.period === period);
+      const k = kpis?.find((x) => x.name === widget.kpiName && x.period === eff.period);
       if (!kpis) body = <Loading />;
-      else if (!k) body = <NotFound>{widget.kpiName} · {period}</NotFound>;
+      else if (!k) body = <NotFound>{widget.kpiName} · {eff.period}</NotFound>;
       else body = <Gauge kpi={k} />;
       break;
     }
@@ -102,29 +102,29 @@ export function WidgetRenderer({ widget, index, total, products, trials, kpis }:
     case "heatmap": {
       badge = "HEATMAP";
       if (!kpis) body = <Loading />;
-      else body = <Heatmap kpis={kpis} function_={widget.function_} />;
+      else body = <Heatmap kpis={kpis} function_={eff.function_} />;
       break;
     }
 
     case "compare": {
       badge = "COMPARE";
       if (!kpis) body = <Loading />;
-      else body = <Compare kpis={kpis} kpiNames={widget.kpiNames} period={widget.period} />;
+      else body = <Compare kpis={kpis} kpiNames={widget.kpiNames} period={eff.period} />;
       break;
     }
 
     case "products": {
       badge = "CATALOG";
       const filtered = (products ?? []).filter(
-        (p) => !widget.therapyArea || p.therapy_area.toLowerCase() === widget.therapyArea.toLowerCase(),
+        (p) => !eff.therapyArea || p.therapy_area.toLowerCase() === eff.therapyArea.toLowerCase(),
       );
       body = !products ? <Loading /> : (
-        <div className="p-0">
-          <div className="px-5 pt-4 pb-3 border-b border-[var(--line)]">
-            <div className="kicker">[ {widget.therapyArea ?? "ALL"} · {filtered.length.toString().padStart(2,"0")} ]</div>
+        <div className="p-0 h-full flex flex-col">
+          <div className="px-5 pt-4 pb-3 border-b border-[var(--line)] shrink-0">
+            <div className="kicker">[ {eff.therapyArea ?? "ALL"} · {filtered.length.toString().padStart(2,"0")} ]</div>
             <div className="font-display-stand text-[20px] mt-1">{widget.title ?? "Products"}</div>
           </div>
-          <div className="max-h-[280px] overflow-auto">
+          <div className="flex-1 min-h-0 overflow-auto">
             <table className="w-full text-sm">
               <tbody>
                 {filtered.map((p) => (
@@ -150,15 +150,15 @@ export function WidgetRenderer({ widget, index, total, products, trials, kpis }:
         (!widget.status || t.status.toLowerCase() === widget.status.toLowerCase()),
       );
       body = !trials ? <Loading /> : (
-        <div className="p-0">
-          <div className="px-5 pt-4 pb-3 border-b border-[var(--line)]">
+        <div className="p-0 h-full flex flex-col">
+          <div className="px-5 pt-4 pb-3 border-b border-[var(--line)] shrink-0">
             <div className="kicker">
               [ {widget.productName ? widget.productName.toUpperCase() : "ALL"} ·{" "}
               {filtered.length.toString().padStart(2, "0")} ]
             </div>
             <div className="font-display-stand text-[20px] mt-1">{widget.title ?? "Clinical trials"}</div>
           </div>
-          <div className="max-h-[280px] overflow-auto">
+          <div className="flex-1 min-h-0 overflow-auto">
             <table className="w-full text-sm">
               <tbody>
                 {filtered.map((t) => (
@@ -180,8 +180,9 @@ export function WidgetRenderer({ widget, index, total, products, trials, kpis }:
     case "note": {
       badge = "NOTE";
       body = (
-        <div className="p-5">
-          <div className="prose-invert text-[14.5px] text-[var(--bone-soft)] leading-relaxed whitespace-pre-wrap">
+        <div className="p-5 h-full overflow-auto">
+          {widget.title && <div className="kicker mb-1.5">[ {widget.title.toUpperCase()} ]</div>}
+          <div className="text-[14.5px] text-[var(--bone-soft)] leading-relaxed whitespace-pre-wrap">
             {widget.markdown}
           </div>
         </div>
@@ -191,43 +192,7 @@ export function WidgetRenderer({ widget, index, total, products, trials, kpis }:
   }
 
   return (
-    <DraggableWidget id={widget.id}>
-      {/* hover toolbar */}
-      <div className="absolute top-2 right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
-        <button
-          onClick={() => moveWidget(widget.id, -1)}
-          disabled={index === 0}
-          title="Move up"
-          className="p-1 rounded hover:bg-[var(--surface-hi)] text-[var(--muted-hi)] disabled:opacity-30 disabled:hover:bg-transparent"
-        >
-          <ChevronUp size={13} />
-        </button>
-        <button
-          onClick={() => moveWidget(widget.id, 1)}
-          disabled={index === total - 1}
-          title="Move down"
-          className="p-1 rounded hover:bg-[var(--surface-hi)] text-[var(--muted-hi)] disabled:opacity-30 disabled:hover:bg-transparent"
-        >
-          <ChevronDown size={13} />
-        </button>
-        <button
-          onClick={() => removeWidget(widget.id)}
-          title="Remove"
-          className="p-1 rounded hover:bg-[var(--coral)]/15 hover:text-[var(--coral)] text-[var(--muted-hi)]"
-        >
-          <X size={13} />
-        </button>
-      </div>
-
-      {/* drag handle */}
-      <div
-        className="absolute top-2 left-1/2 -translate-x-1/2 z-10 opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing text-[var(--muted-hi)] hover:text-[var(--bone)]"
-        title="Drag to reorder"
-        data-drag-handle
-      >
-        <GripVertical size={13} />
-      </div>
-
+    <div className="surface-soft relative h-full w-full overflow-hidden">
       {/* badge */}
       {badge && (
         <div className="absolute top-2 left-3 z-10 font-mono text-[9.5px] tracking-[0.2em] uppercase text-[var(--muted)] pointer-events-none">
@@ -235,47 +200,31 @@ export function WidgetRenderer({ widget, index, total, products, trials, kpis }:
         </div>
       )}
 
-      {body}
-    </DraggableWidget>
-  );
-}
+      {/* toolbar — show when selected; settings opens the properties panel
+          (which is wired in SandboxClient via the selection store). */}
+      <div
+        data-no-drag
+        className={`absolute top-2 right-2 z-10 flex items-center gap-0.5 transition-opacity ${
+          isSelected ? "opacity-100" : "opacity-0 hover:opacity-100"
+        }`}
+      >
+        <button
+          onClick={(e) => { e.stopPropagation(); selectWidget(widget.id); }}
+          title="Edit"
+          className="p-1 rounded hover:bg-[var(--surface-hi)] text-[var(--muted-hi)]"
+        >
+          <Settings2 size={12} />
+        </button>
+        <button
+          onClick={(e) => { e.stopPropagation(); removeWidget(widget.id); }}
+          title="Remove"
+          className="p-1 rounded hover:bg-[var(--coral)]/15 hover:text-[var(--coral)] text-[var(--muted-hi)]"
+        >
+          <Trash2 size={12} />
+        </button>
+      </div>
 
-function DraggableWidget({
-  id, children,
-}: Readonly<{ id: string; children: React.ReactNode }>) {
-  const [dragging, setDragging] = useState(false);
-  const [over, setOver]         = useState(false);
-  return (
-    <div
-      draggable
-      onDragStart={(e) => {
-        e.dataTransfer.setData("text/widget-id", id);
-        e.dataTransfer.effectAllowed = "move";
-        setDragging(true);
-      }}
-      onDragEnd={() => setDragging(false)}
-      onDragEnter={(e) => {
-        const from = e.dataTransfer.types.includes("text/widget-id");
-        if (from) setOver(true);
-      }}
-      onDragOver={(e) => {
-        if (e.dataTransfer.types.includes("text/widget-id")) {
-          e.preventDefault();
-          e.dataTransfer.dropEffect = "move";
-        }
-      }}
-      onDragLeave={() => setOver(false)}
-      onDrop={(e) => {
-        e.preventDefault();
-        const fromId = e.dataTransfer.getData("text/widget-id");
-        if (fromId) reorderWidgets(fromId, id);
-        setOver(false);
-      }}
-      className={`surface-soft p-0 relative group overflow-hidden reveal ${
-        dragging ? "is-dragging" : ""
-      } ${over && !dragging ? "drop-target" : ""}`}
-    >
-      {children}
+      {body}
     </div>
   );
 }

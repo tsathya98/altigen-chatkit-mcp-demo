@@ -21,7 +21,18 @@ from pathlib import Path
 from typing import Any
 
 import httpx
+import uuid
+from datetime import datetime, timezone
 from chatkit.server import StreamingResult
+from chatkit.types import (
+    ActiveStatus,
+    AssistantMessageContent,
+    AssistantMessageItem,
+    InferenceOptions,
+    ThreadMetadata,
+    UserMessageItem,
+    UserMessageTextContent,
+)
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -202,6 +213,72 @@ async def activity_push(request: Request) -> dict[str, str]:
 # MCP introspection — list the tools, resources, and prompts the agent has.
 # Used by the Command Palette and the MCP Inspector panel.
 # ---------------------------------------------------------------------------
+
+@app.post("/api/voice/append-turn")
+async def voice_append_turn(
+    request: Request, server: AltigenServer = Depends(get_chat),
+) -> dict[str, Any]:
+    """Mirror a completed voice turn into a ChatKit thread.
+
+    The browser's voice WebRTC session captures both sides of the
+    conversation as transcripts; we then POST `{thread_id, user_text,
+    assistant_text}` here so the same turn appears in the chat history,
+    Just Like ChatGPT.
+
+    If `thread_id` is null/missing, we mint a fresh thread.
+    """
+    body = await request.json()
+    thread_id: str | None = body.get("thread_id") or None
+    user_text: str = (body.get("user_text") or "").strip()
+    assistant_text: str = (body.get("assistant_text") or "").strip()
+    if not user_text and not assistant_text:
+        raise HTTPException(400, "user_text or assistant_text required")
+
+    store = server.store
+    context: dict[str, Any] = dict(request.headers)
+    now = datetime.now(timezone.utc)
+
+    # Locate or create the thread.
+    if thread_id:
+        try:
+            await store.load_thread(thread_id, context)
+        except Exception:
+            thread_id = None  # fall through to fresh thread
+
+    if not thread_id:
+        thread_id = "thr_" + uuid.uuid4().hex[:18]
+        meta = ThreadMetadata(
+            id=thread_id,
+            created_at=now,
+            title="Voice session",
+            status=ActiveStatus(),
+            metadata={"source": "voice"},
+        )
+        await store.save_thread(meta, context)
+
+    # Append the user side.
+    if user_text:
+        u_item = UserMessageItem(
+            id="msg_" + uuid.uuid4().hex[:18],
+            thread_id=thread_id,
+            created_at=now,
+            content=[UserMessageTextContent(text=user_text)],
+            inference_options=InferenceOptions(),
+        )
+        await store.add_thread_item(thread_id, u_item, context)
+
+    # Append the assistant side.
+    if assistant_text:
+        a_item = AssistantMessageItem(
+            id="msg_" + uuid.uuid4().hex[:18],
+            thread_id=thread_id,
+            created_at=now,
+            content=[AssistantMessageContent(text=assistant_text)],
+        )
+        await store.add_thread_item(thread_id, a_item, context)
+
+    return {"ok": True, "thread_id": thread_id}
+
 
 @app.get("/api/mcp/manifest")
 async def mcp_manifest(server: AltigenServer = Depends(get_chat)) -> dict[str, Any]:

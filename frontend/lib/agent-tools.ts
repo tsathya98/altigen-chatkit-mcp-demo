@@ -18,8 +18,15 @@ import { pushClientActivity } from "./activity-store";
 import {
   addWidget,
   clearSandbox,
+  deleteDashboard,
+  duplicateDashboard,
+  getSandbox,
+  newDashboard,
   removeWidget,
+  renameDashboard,
   replaceSandbox,
+  setActiveDashboard,
+  setFilters,
   setSandboxMeta,
   updateWidget,
   type Widget,
@@ -80,6 +87,17 @@ const WIDGET_SCHEMA = {
     markdown: {
       type: "string",
       description: "For kind=note. A short Markdown blurb / headline.",
+    },
+    pos: {
+      type: "object",
+      description:
+        "Optional grid position { x, y, w, h } in cells (canvas is 12 cols wide). If omitted, the widget is auto-placed in the next free row at the default size.",
+      properties: {
+        x: { type: "integer", minimum: 0, maximum: 11 },
+        y: { type: "integer", minimum: 0 },
+        w: { type: "integer", minimum: 2, maximum: 12 },
+        h: { type: "integer", minimum: 2 },
+      },
     },
   },
 } as const;
@@ -197,10 +215,116 @@ export function buildAgentTools(): Record<string, AgentTool> {
     },
 
     clear_dashboard: {
-      description: "Wipe the sandbox dashboard back to empty.",
+      description: "Wipe the current sandbox dashboard back to empty (keeps it in the list).",
       parameters: { type: "object", properties: {} },
       handler: async () => {
         clearSandbox();
+        return { ok: true };
+      },
+    },
+
+    set_filters: {
+      description:
+        "Set global filters on the active sandbox dashboard. Period, therapy area, and function are inherited by every widget that doesn't specify its own. Pass null/empty string to clear an individual filter.",
+      parameters: {
+        type: "object",
+        properties: {
+          period:      { type: "string", description: "e.g. '2026-Q1'. Empty to clear." },
+          therapyArea: { type: "string", description: "e.g. 'Cardiology'. Empty to clear." },
+          function:    { type: "string", description: "e.g. 'Commercial'. Empty to clear." },
+        },
+      },
+      handler: async ({ period, therapyArea, function: fn }) => {
+        setFilters({
+          period: typeof period === "string" ? (period || undefined) : undefined,
+          therapyArea: typeof therapyArea === "string" ? (therapyArea || undefined) : undefined,
+          function: typeof fn === "string" ? (fn || undefined) : undefined,
+        });
+        return { ok: true };
+      },
+    },
+
+    new_dashboard: {
+      description: "Create a brand-new empty dashboard and switch to it.",
+      parameters: {
+        type: "object",
+        required: ["title"],
+        properties: {
+          title:    { type: "string" },
+          subtitle: { type: "string" },
+        },
+      },
+      handler: async ({ title, subtitle }, { router }) => {
+        const d = newDashboard(String(title ?? "Untitled"), typeof subtitle === "string" ? subtitle : undefined);
+        router.push("/sandbox");
+        return { ok: true, id: d.id };
+      },
+    },
+
+    switch_dashboard: {
+      description:
+        "Switch the active sandbox dashboard by id or by title (case-insensitive substring match).",
+      parameters: {
+        type: "object",
+        properties: {
+          id:    { type: "string" },
+          title: { type: "string" },
+        },
+      },
+      handler: async ({ id, title }, { router }) => {
+        const s = getSandbox();
+        let targetId: string | undefined = typeof id === "string" ? id : undefined;
+        if (!targetId && typeof title === "string") {
+          const t = title.toLowerCase();
+          targetId = s.order.find((dId) => s.dashboards[dId]?.title.toLowerCase().includes(t));
+        }
+        if (!targetId || !s.dashboards[targetId]) return { ok: false, error: "dashboard not found" };
+        setActiveDashboard(targetId);
+        router.push("/sandbox");
+        return { ok: true, id: targetId };
+      },
+    },
+
+    rename_dashboard: {
+      description: "Rename a dashboard by id (defaults to the active one).",
+      parameters: {
+        type: "object",
+        required: ["title"],
+        properties: {
+          id:       { type: "string" },
+          title:    { type: "string" },
+          subtitle: { type: "string" },
+        },
+      },
+      handler: async ({ id, title, subtitle }) => {
+        const dashId = (typeof id === "string" && id) || getSandbox().activeId;
+        renameDashboard(dashId, String(title), typeof subtitle === "string" ? subtitle : undefined);
+        return { ok: true, id: dashId };
+      },
+    },
+
+    duplicate_dashboard: {
+      description: "Duplicate a dashboard by id (defaults to the active one) and switch to the copy.",
+      parameters: {
+        type: "object",
+        properties: { id: { type: "string" } },
+      },
+      handler: async ({ id }) => {
+        const dashId = (typeof id === "string" && id) || getSandbox().activeId;
+        const copy = duplicateDashboard(dashId);
+        return { ok: !!copy, id: copy?.id };
+      },
+    },
+
+    delete_dashboard: {
+      description: "Delete a dashboard by id (defaults to the active one). If it was the last one, a fresh empty dashboard is created.",
+      parameters: {
+        type: "object",
+        properties: { id: { type: "string" } },
+      },
+      handler: async ({ id }) => {
+        const dashId = (typeof id === "string" && id) || getSandbox().activeId;
+        deleteDashboard(dashId);
         return { ok: true };
       },
     },

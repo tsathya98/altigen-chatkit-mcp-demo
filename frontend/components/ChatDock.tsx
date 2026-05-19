@@ -10,6 +10,7 @@ import { executeTool } from "@/lib/agent-tools";
 import { registerChatBridge } from "@/lib/chat-bridge";
 import { MAX_WIDTH, MIN_WIDTH, useDockState, type DockMode } from "@/lib/dock-state";
 import { useTheme } from "@/lib/theme-state";
+import { setThreadId as setVoiceThreadId } from "@/lib/voice-state";
 import { VoiceButton } from "./VoiceButton";
 
 /**
@@ -85,6 +86,9 @@ export function ChatDock() {
     disclaimer: { text: "Demo build · mock pharma data · not for clinical use", highContrast: false },
     header: { enabled: false },
     onClientTool,
+    // Keep the voice store informed about which thread we're in so completed
+    // voice turns can be mirrored to the correct ChatKit history.
+    onThreadChange: (e) => setVoiceThreadId(e.threadId),
   });
 
   const startNewThread = useCallback(() => {

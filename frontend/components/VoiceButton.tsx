@@ -2,23 +2,31 @@
 
 import { Mic, Square } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
-import { executeTool, toolsForRealtime } from "@/lib/agent-tools";
+import { useEffect, useRef } from "react";
 import { pushClientActivity } from "@/lib/activity-store";
+import { executeTool, toolsForRealtime } from "@/lib/agent-tools";
+import {
+  appendAssistantPartial,
+  finalizeTurn,
+  finalizeUserTurn,
+  getVoiceState,
+  markTurnSynced,
+  registerVoiceStop,
+  resetVoice,
+  setVoiceState,
+  useVoiceState,
+  type VoiceTurn,
+} from "@/lib/voice-state";
 
 /**
  * Realtime voice mode — WebRTC straight to OpenAI's GA Realtime API.
  *
- * Flow (2026):
- *   1. Backend mints an ephemeral key via POST /v1/realtime/client_secrets.
- *   2. Browser opens an RTCPeerConnection, attaches mic, opens a data channel.
- *   3. Browser POSTs the SDP offer to https://api.openai.com/v1/realtime/calls
- *      with `Authorization: Bearer <ephemeral key>` and Content-Type: application/sdp.
- *   4. Once connected, sends `session.update` over the data channel with the
- *      Altigen Pharma system instructions so the voice agent answers in context.
- *
- * The user's mic stream never touches our backend — only the ephemeral key is
- * proxied. This is the official supported pattern.
+ * Drives the shared voice-state store so the VoiceOverlay can render
+ * a Siri-style modal alongside this header pill. Captures transcripts
+ * from the Realtime data channel and POSTs each completed turn to
+ * /api/voice/append-turn so the conversation mirrors into the ChatKit
+ * thread — exactly like ChatGPT's voice mode shows the spoken turns
+ * as text once you leave the call.
  */
 
 const REALTIME_INSTRUCTIONS = `
@@ -47,6 +55,13 @@ You can MUTATE the UI by calling tools:
       "Adverse-event reporting SLA", "Site activation cycle time".
   • add_widget / remove_widget / update_widget / set_dashboard_meta /
     clear_dashboard — for incremental edits.
+  • set_filters({period?, therapyArea?, function?}) — global slicers; every
+    widget without its own value inherits from these.
+  • new_dashboard / switch_dashboard / rename_dashboard / duplicate_dashboard /
+    delete_dashboard — managing the saved dashboard list (left sidebar).
+
+  Widgets can take an optional pos:{x,y,w,h} on a 12-col grid; omit to
+  auto-place.
 
 When the user asks for a dashboard about a topic, FIRST navigate to /sandbox
 then call create_dashboard. Speak briefly while you build ("Building a launch
@@ -61,9 +76,7 @@ behind plan due to Japan/Brazil site activation delays.
 
 export function VoiceButton() {
   const router = useRouter();
-  const [live, setLive] = useState(false);
-  const [connecting, setConnecting] = useState(false);
-  const [level, setLevel] = useState(0);   // 0-1, mic loudness for waveform
+  const voice = useVoiceState();
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const dcRef = useRef<RTCDataChannel | null>(null);
@@ -71,11 +84,19 @@ export function VoiceButton() {
   const acRef = useRef<AudioContext | null>(null);
   const rafRef = useRef<number | null>(null);
 
-  // Start polling the analyser whenever `live` flips on.
+  const live = voice.status !== "idle" && voice.status !== "connecting";
+  const connecting = voice.status === "connecting";
+
+  // Expose stop() to the overlay's "End" button.
   useEffect(() => {
-    if (!live || !acRef.current) return;
-    const ac = acRef.current;
-    const analyser = (ac as any).__analyser as AnalyserNode | undefined;
+    return registerVoiceStop(stop);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Mic level → voice-state.level, drives both header pill and overlay orb.
+  useEffect(() => {
+    if (voice.status === "idle" || !acRef.current) return;
+    const analyser = (acRef.current as any).__analyser as AnalyserNode | undefined;
     if (!analyser) return;
     const buf = new Uint8Array(analyser.frequencyBinCount);
     const tick = () => {
@@ -86,7 +107,7 @@ export function VoiceButton() {
         sum += v * v;
       }
       const rms = Math.sqrt(sum / buf.length);
-      setLevel(Math.min(1, rms * 3));
+      setVoiceState({ level: Math.min(1, rms * 3) });
       rafRef.current = requestAnimationFrame(tick);
     };
     rafRef.current = requestAnimationFrame(tick);
@@ -94,37 +115,36 @@ export function VoiceButton() {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       rafRef.current = null;
     };
-  }, [live]);
+  }, [voice.status]);
 
   async function start() {
     try {
-      setConnecting(true);
+      setVoiceState({ status: "connecting", error: null });
 
       // 1. Mint ephemeral session token from our backend.
       const tokenRes = await fetch("/api/voice/realtime-token", { method: "POST" });
       if (!tokenRes.ok) throw new Error(`token ${tokenRes.status}`);
       const session = await tokenRes.json();
       const ephemeralKey: string | undefined =
-        session?.value ??                     // GA shape
-        session?.client_secret?.value ??      // legacy fallback
+        session?.value ??
+        session?.client_secret?.value ??
         session?.client_secret;
       if (!ephemeralKey) throw new Error("no ephemeral key in session response");
 
-      // 2. Set up the peer connection + remote-audio playback.
+      // 2. Peer connection + remote audio playback.
       const pc = new RTCPeerConnection();
       pcRef.current = pc;
-
       const audioEl = new Audio();
       audioEl.autoplay = true;
       audioRef.current = audioEl;
       pc.ontrack = (e) => { audioEl.srcObject = e.streams[0]; };
 
-      // 3. Add the user's mic.
+      // 3. User mic.
       const ms = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = ms;
       ms.getTracks().forEach((t) => pc.addTrack(t, ms));
 
-      // Attach an AnalyserNode so we can draw a live waveform indicator.
+      // AnalyserNode for the live mic-level signal.
       try {
         const ac = new (window.AudioContext || (window as any).webkitAudioContext)();
         const src = ac.createMediaStreamSource(ms);
@@ -133,50 +153,90 @@ export function VoiceButton() {
         src.connect(an);
         (ac as any).__analyser = an;
         acRef.current = ac;
-      } catch {
-        /* audio analysis is best-effort */
-      }
+      } catch { /* best effort */ }
 
-      // 4. Open a data channel for control messages + tool-call routing.
+      // 4. Data channel.
       const dc = pc.createDataChannel("oai-events");
       dcRef.current = dc;
+
       dc.addEventListener("open", () => {
         dc.send(JSON.stringify({
           type: "session.update",
           session: {
             type: "realtime",
             instructions: REALTIME_INSTRUCTIONS,
-            audio: { output: { voice: "marin" } },
+            audio: {
+              input: { transcription: { model: "gpt-4o-transcribe" } },
+              output: { voice: "marin" },
+            },
             tools: toolsForRealtime(),
             tool_choice: "auto",
           },
         }));
       });
 
-      // Tool-call dispatch: the model emits a function_call item we execute
-      // locally (mutating the sandbox / routing) and reply with the output.
       dc.addEventListener("message", async (msg) => {
         let evt: any;
         try { evt = JSON.parse(msg.data); } catch { return; }
         if (!evt?.type) return;
 
-        // GA event for a completed function call.
-        if (evt.type === "response.output_item.done" && evt.item?.type === "function_call") {
+        // ---- VAD signals --------------------------------------------------
+        if (evt.type === "input_audio_buffer.speech_started") {
+          setVoiceState({ status: "user-speaking", userPartial: "" });
+          return;
+        }
+        if (evt.type === "input_audio_buffer.speech_stopped") {
+          setVoiceState({ status: "thinking" });
+          return;
+        }
+
+        // ---- User-speech transcription (final) ---------------------------
+        // GA: conversation.item.input_audio_transcription.completed
+        if (
+          evt.type === "conversation.item.input_audio_transcription.completed" ||
+          evt.type === "conversation.item.input_audio_transcription.done"
+        ) {
+          const text: string = evt.transcript ?? "";
+          if (text) finalizeUserTurn(text);
+          return;
+        }
+
+        // ---- Assistant audio transcript streaming ------------------------
+        // GA: response.output_audio_transcript.delta / .done
+        if (
+          evt.type === "response.output_audio_transcript.delta" ||
+          evt.type === "response.audio_transcript.delta"
+        ) {
+          const delta: string = evt.delta ?? "";
+          if (delta) appendAssistantPartial(delta);
+          return;
+        }
+        if (
+          evt.type === "response.output_audio_transcript.done" ||
+          evt.type === "response.audio_transcript.done"
+        ) {
+          // Turn is over — finalize and POST it to the chat thread.
+          const turn = finalizeTurn();
+          if (turn) await syncTurn(turn);
+          return;
+        }
+
+        // ---- Tool calls (existing behaviour, unchanged) ------------------
+        if (
+          evt.type === "response.output_item.done" &&
+          evt.item?.type === "function_call"
+        ) {
           const { name, call_id, arguments: rawArgs } = evt.item;
           const result = await executeTool(name, rawArgs ?? "{}", { router });
           dc.send(JSON.stringify({
             type: "conversation.item.create",
-            item: {
-              type: "function_call_output",
-              call_id,
-              output: result.output,
-            },
+            item: { type: "function_call_output", call_id, output: result.output },
           }));
           dc.send(JSON.stringify({ type: "response.create" }));
         }
       });
 
-      // 5. SDP offer → POST to /v1/realtime/calls (GA endpoint).
+      // 5. SDP offer → POST to /v1/realtime/calls.
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
 
@@ -192,14 +252,12 @@ export function VoiceButton() {
       if (!sdpRes.ok) throw new Error(`sdp ${sdpRes.status}`);
       await pc.setRemoteDescription({ type: "answer", sdp: await sdpRes.text() });
 
-      setLive(true);
+      setVoiceState({ status: "listening" });
       pushClientActivity({ kind: "info", name: "voice_session", text: "Voice mode connected" });
     } catch (err) {
       console.error("[voice]", err);
+      setVoiceState({ status: "idle", error: String(err) });
       stop();
-      alert("Voice mode failed to start. Check the console for details.");
-    } finally {
-      setConnecting(false);
     }
   }
 
@@ -214,16 +272,14 @@ export function VoiceButton() {
     dcRef.current = null;
     audioRef.current = null;
     acRef.current = null;
-    setLive(false);
-    setLevel(0);
+    resetVoice();
   }
 
   const label = connecting ? "Connecting" : live ? "Listening" : "Voice";
 
   return (
     <button
-      onClick={live ? stop : start}
-      disabled={connecting}
+      onClick={live || connecting ? stop : start}
       className={`relative flex items-center gap-1.5 text-[10.5px] font-mono tracking-[0.18em] uppercase rounded-full px-2.5 py-1 border transition-colors ${
         live
           ? "border-[var(--coral)]/50 text-[var(--coral)] bg-[var(--coral)]/10"
@@ -234,16 +290,48 @@ export function VoiceButton() {
       title={live ? "Stop voice mode" : "Start voice mode"}
     >
       {live ? <Square size={11} /> : <Mic size={11} />}
-      {live ? <WaveBars level={level} /> : <span>{label}</span>}
-      {!live && connecting && <span className="ml-1 voice-bar" style={{ color: "var(--muted)" }} />}
+      {live ? <WaveBars level={voice.level} /> : <span>{label}</span>}
     </button>
   );
 }
 
+// ---------------------------------------------------------------------------
+// Sync helpers
+// ---------------------------------------------------------------------------
+
+async function syncTurn(turn: VoiceTurn): Promise<void> {
+  const threadId = getVoiceState().threadId;
+  try {
+    const res = await fetch("/api/voice/append-turn", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        thread_id: threadId,
+        user_text: turn.user,
+        assistant_text: turn.assistant,
+      }),
+    });
+    if (res.ok) {
+      const data = await res.json().catch(() => null);
+      // If the backend created a new thread for us, remember it.
+      const newThreadId: string | undefined = data?.thread_id;
+      if (newThreadId && newThreadId !== threadId) {
+        setVoiceState({ threadId: newThreadId });
+      }
+      markTurnSynced(turn.id);
+      pushClientActivity({
+        kind: "info",
+        name: "voice_turn_synced",
+        text: `Mirrored voice turn → chat (${turn.user.slice(0, 60)})`,
+      });
+    }
+  } catch (err) {
+    console.warn("[voice] append-turn failed", err);
+  }
+}
+
 /** Five reactive bars next to the Stop icon — height tracks mic RMS. */
 function WaveBars({ level }: Readonly<{ level: number }>) {
-  // Five bars; each gets a slightly different envelope so they don't all
-  // pulse identically. We add a baseline so quiet rooms still show motion.
   const base = 0.25 + level * 0.85;
   const bars = [base, base * 1.2, base * 0.8, base * 1.4, base * 0.6];
   return (
