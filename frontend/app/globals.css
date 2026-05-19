@@ -1,0 +1,340 @@
+@import "tailwindcss";
+
+/*
+ * Altigen Pharma — operations terminal × pharmaceutical editorial
+ * Deep ink palette, surgical mint, bone-white type. Optical sizing + italic
+ * serif display against monospace utility. No purple gradients here.
+ */
+
+:root {
+  /* surfaces */
+  --ink:        #0a0a0b;
+  --ink-deep:   #050506;
+  --ink-soft:   #111114;
+  --surface:    #15151a;
+  --surface-hi: #1c1c22;
+  --line:       rgba(245, 240, 232, 0.08);
+  --line-hi:    rgba(245, 240, 232, 0.18);
+
+  /* text */
+  --bone:       #f4efe6;
+  --bone-soft:  #d8d2c5;
+  --muted:      #7a7783;
+  --muted-hi:   #9b96a4;
+
+  /* accents */
+  --mint:       #7af3d0;   /* surgical, healthy */
+  --coral:      #ff7a5c;   /* warning */
+  --amber:      #f5b54a;   /* caution */
+  --violet:     #b4a0ff;   /* secondary, used sparingly */
+
+  /* radii */
+  --r-sm: 6px;
+  --r:    10px;
+  --r-lg: 18px;
+}
+
+/* Light theme — paper-bone surfaces, ink text. Mint accent stays.
+ * Applied via data-theme="light" on <html> by lib/theme-state.ts. */
+html[data-theme="light"] {
+  --ink:        #f7f4ee;
+  --ink-deep:   #ebe6db;
+  --ink-soft:   #ffffff;
+  --surface:    #ffffff;
+  --surface-hi: #f4efe6;
+  --line:       rgba(10, 10, 11, 0.10);
+  --line-hi:    rgba(10, 10, 11, 0.20);
+
+  --bone:       #0a0a0b;
+  --bone-soft:  #2a2a30;
+  --muted:      #6b6873;
+  --muted-hi:   #4a4751;
+
+  --mint:       #1a8a6e;
+  --coral:      #c83d2c;
+  --amber:      #a36a14;
+  --violet:     #6240b8;
+}
+
+html, body {
+  background: var(--ink);
+  color: var(--bone);
+  transition: background-color 220ms ease, color 220ms ease;
+}
+
+body {
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  font-feature-settings: "ss01", "ss02", "cv11";
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Editorial display — Fraunces, italic, optical sizing, soft */
+.font-display {
+  font-family: var(--font-display), ui-serif, Georgia, serif;
+  font-style: italic;
+  font-variation-settings: "opsz" 144, "SOFT" 100, "WONK" 0;
+  letter-spacing: -0.02em;
+}
+.font-display-stand {
+  font-family: var(--font-display), ui-serif, Georgia, serif;
+  font-variation-settings: "opsz" 96, "SOFT" 50, "WONK" 0;
+  letter-spacing: -0.015em;
+}
+
+.font-mono {
+  font-family: var(--font-mono), ui-monospace, "JetBrains Mono", monospace;
+  font-feature-settings: "ss01", "zero", "cv11";
+}
+
+/* utilities ------------------------------------------------------------ */
+
+.kicker {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted-hi);
+}
+
+.kicker-mint { color: var(--mint); }
+
+.tabular { font-variant-numeric: tabular-nums; }
+
+.surface {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+}
+
+.surface-soft {
+  background: linear-gradient(180deg, rgba(255,255,255,0.025), rgba(255,255,255,0));
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+}
+
+.scanlines {
+  background-image: repeating-linear-gradient(
+    180deg,
+    rgba(255,255,255,0.012) 0,
+    rgba(255,255,255,0.012) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+}
+
+.grid-paper {
+  background-image:
+    linear-gradient(var(--line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--line) 1px, transparent 1px);
+  background-size: 64px 64px;
+  background-position: -1px -1px;
+}
+
+.noise {
+  background-image: url("data:image/svg+xml;utf8,<svg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.95   0 0 0 0 0.94   0 0 0 0 0.91   0 0 0 0.05 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  background-size: 220px 220px;
+}
+
+.divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--line-hi), transparent);
+}
+
+/* tones for KPI deltas */
+.tone-positive { color: var(--mint); }
+.tone-warning  { color: var(--amber); }
+.tone-critical { color: var(--coral); }
+.tone-neutral  { color: var(--bone-soft); }
+
+/* breathing dot ------------------------------------------------------- */
+
+@keyframes breathe {
+  0%, 100% { opacity: 0.55; transform: scale(1); }
+  50%      { opacity: 1;    transform: scale(1.18); }
+}
+.dot-breathe {
+  animation: breathe 2.6s ease-in-out infinite;
+}
+
+/* page-load reveal --------------------------------------------------- */
+
+@keyframes rise-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes blur-in {
+  from { opacity: 0; filter: blur(10px); }
+  to   { opacity: 1; filter: blur(0); }
+}
+.reveal { opacity: 0; animation: rise-in 720ms cubic-bezier(.16,1,.3,1) forwards; }
+.reveal-blur { opacity: 0; animation: blur-in 900ms cubic-bezier(.16,1,.3,1) forwards; }
+
+/* selection ---------------------------------------------------------- */
+::selection { background: var(--mint); color: var(--ink); }
+
+/* form inputs (login + composer rebuilt) ---------------------------- */
+
+.field {
+  width: 100%;
+  background: transparent;
+  color: var(--bone);
+  border: 0;
+  border-bottom: 1px solid var(--line-hi);
+  padding: 14px 0 12px;
+  font-size: 17px;
+  font-family: var(--font-sans);
+  outline: none;
+  transition: border-color 200ms ease, color 200ms ease;
+}
+.field::placeholder { color: var(--muted); font-style: italic; }
+.field:focus { border-color: var(--mint); }
+
+.btn-ghost {
+  display: inline-flex; align-items: center; gap: 0.5rem;
+  font-family: var(--font-mono);
+  font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--bone-soft);
+  border: 1px solid var(--line-hi);
+  padding: 9px 14px;
+  border-radius: var(--r);
+  transition: all 180ms ease;
+  background: transparent;
+  cursor: pointer;
+}
+.btn-ghost:hover { color: var(--ink); background: var(--bone); border-color: var(--bone); }
+
+.btn-mint {
+  display: inline-flex; align-items: center; gap: 0.6rem;
+  font-family: var(--font-mono);
+  font-size: 11.5px; letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--ink);
+  background: var(--mint);
+  padding: 14px 20px;
+  border-radius: var(--r);
+  transition: transform 200ms ease, box-shadow 200ms ease;
+  cursor: pointer;
+  box-shadow: 0 0 0 0 rgba(122, 243, 208, 0);
+}
+.btn-mint:hover { transform: translateY(-1px); box-shadow: 0 12px 40px -12px rgba(122,243,208,0.55); }
+
+/* numeric headline (KPI) -------------------------------------------- */
+
+.hero-num {
+  font-family: var(--font-display), serif;
+  font-style: italic;
+  font-variation-settings: "opsz" 144, "SOFT" 50;
+  font-size: 56px;
+  line-height: 0.95;
+  letter-spacing: -0.04em;
+  font-feature-settings: "ss01", "tnum";
+}
+
+/* horizontal marquee ticker ----------------------------------------- */
+
+@keyframes ticker {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+.ticker-track {
+  display: inline-flex;
+  gap: 3rem;
+  animation: ticker 60s linear infinite;
+  white-space: nowrap;
+}
+
+/* chat dock animation ---------------------------------------------- */
+
+@keyframes dock-pop {
+  from { opacity: 0; transform: scale(0.96) translateY(8px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+.dock-pop { animation: dock-pop 280ms cubic-bezier(.16,1,.3,1) both; }
+
+/* glow ring used on accent buttons / login canvas-side */
+.ring-mint { box-shadow: 0 0 0 1px rgba(122,243,208,0.45), 0 24px 80px -20px rgba(122,243,208,0.5); }
+
+/* keyboard key hint pill — used in command palette footer */
+.kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  padding: 0 4px;
+  margin: 0 2px;
+  border: 1px solid var(--line-hi);
+  background: var(--surface-hi);
+  border-radius: 4px;
+  color: var(--bone-soft);
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  line-height: 14px;
+  letter-spacing: 0.04em;
+}
+
+/* fancy live status pill that emits a soft halo when active */
+.live-halo {
+  position: relative;
+}
+.live-halo::before {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: inherit;
+  background: radial-gradient(circle, rgba(122,243,208,0.35), transparent 70%);
+  opacity: 0;
+  z-index: -1;
+  transition: opacity 220ms ease;
+}
+.live-halo.is-active::before { opacity: 1; animation: halo-pulse 2.2s ease-in-out infinite; }
+@keyframes halo-pulse {
+  0%, 100% { opacity: 0.4; transform: scale(1);   }
+  50%      { opacity: 0.9; transform: scale(1.08); }
+}
+
+/* gauge needle sweep */
+@keyframes needle-in {
+  from { stroke-dashoffset: 240; opacity: 0; }
+  to   { stroke-dashoffset: 0;   opacity: 1; }
+}
+.gauge-arc { stroke-dasharray: 240; animation: needle-in 1100ms cubic-bezier(.16,1,.3,1) forwards; }
+
+/* shimmer for skeletons */
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0;  }
+}
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(245,240,232,0.04) 0%,
+    rgba(245,240,232,0.10) 50%,
+    rgba(245,240,232,0.04) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2.2s ease-in-out infinite;
+}
+
+/* dragging affordance for sandbox widgets */
+.is-dragging  { opacity: 0.5; transform: scale(0.98); }
+.drop-target  { outline: 1.5px dashed var(--mint); outline-offset: -2px; background: rgba(122,243,208,0.04); }
+
+/* voice waveform bars */
+.voice-bar {
+  display: inline-block;
+  width: 2px;
+  height: 6px;
+  margin: 0 1px;
+  background: currentColor;
+  border-radius: 1px;
+  transform-origin: bottom;
+  animation: voice-bar 1.1s ease-in-out infinite;
+}
+.voice-bar:nth-child(2) { animation-delay: 0.12s; }
+.voice-bar:nth-child(3) { animation-delay: 0.24s; }
+.voice-bar:nth-child(4) { animation-delay: 0.36s; }
+.voice-bar:nth-child(5) { animation-delay: 0.48s; }
+@keyframes voice-bar {
+  0%, 100% { transform: scaleY(0.4); }
+  50%      { transform: scaleY(1.6); }
+}
