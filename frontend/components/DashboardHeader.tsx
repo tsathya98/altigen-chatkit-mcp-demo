@@ -50,7 +50,7 @@ export function DashboardHeader({
             {navLink("/", "Operations")}
             <span className="text-[var(--muted)] cursor-default">Trials</span>
             <span className="text-[var(--muted)] cursor-default">Quality</span>
-            <span className="text-[var(--muted)] cursor-default">Commercial</span>
+            {navLink("/studio", "Studio")}
             {navLink("/sandbox", "Sandbox")}
           </nav>
         </div>

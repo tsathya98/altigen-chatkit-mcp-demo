@@ -79,7 +79,7 @@ export function WidgetRenderer({ widget, products, trials, kpis, filters }: Prop
     case "trend": {
       badge = "TREND";
       if (!kpis) body = <Loading />;
-      else body = <div className="p-1 h-full"><TrendChart kpis={kpis} kpiName={widget.kpiName} /></div>;
+      else body = <div className="p-1 h-full"><TrendChart kpis={kpis} kpiName={widget.kpiName} variant={widget.variant} /></div>;
       break;
     }
 

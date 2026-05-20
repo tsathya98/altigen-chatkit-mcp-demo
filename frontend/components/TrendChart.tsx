@@ -4,6 +4,8 @@ import {
   Area,
   AreaChart,
   CartesianGrid,
+  Line,
+  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -11,14 +13,17 @@ import {
 } from "recharts";
 import type { Kpi } from "@/lib/api";
 
+export type TrendVariant = "area" | "line";
+
 type Props = {
   kpis: Kpi[];
   kpiName: string;
   options?: string[];
   onKpiChange?: (name: string) => void;
+  variant?: TrendVariant;
 };
 
-export function TrendChart({ kpis, kpiName, options, onKpiChange }: Props) {
+export function TrendChart({ kpis, kpiName, options, onKpiChange, variant = "area" }: Props) {
   const data = kpis
     .filter((k) => k.name === kpiName)
     .sort((a, b) => a.period.localeCompare(b.period))
@@ -64,61 +69,111 @@ export function TrendChart({ kpis, kpiName, options, onKpiChange }: Props) {
       </div>
 
       <ResponsiveContainer width="100%" height="78%">
-        <AreaChart data={data} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
-          <defs>
-            <linearGradient id="trendFill" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%"  stopColor="#7af3d0" stopOpacity={0.35} />
-              <stop offset="100%" stopColor="#7af3d0" stopOpacity={0} />
-            </linearGradient>
-          </defs>
-          <CartesianGrid strokeDasharray="2 4" stroke="rgba(245,240,232,0.06)" />
-          <XAxis
-            dataKey="period"
-            stroke="#7a7783"
-            fontSize={10.5}
-            tickLine={false}
-            axisLine={{ stroke: "rgba(245,240,232,0.08)" }}
-            tickMargin={8}
-          />
-          <YAxis
-            stroke="#7a7783"
-            fontSize={10.5}
-            tickLine={false}
-            axisLine={false}
-            tickMargin={4}
-          />
-          <Tooltip
-            contentStyle={{
-              background: "var(--ink-soft)",
-              border: "1px solid var(--line-hi)",
-              borderRadius: 8,
-              fontSize: 12,
-              fontFamily: "var(--font-mono)",
-            }}
-            labelStyle={{ color: "var(--muted-hi)", fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase" }}
-            formatter={(v: number) => [`${v} ${unit}`, ""]}
-          />
-          <Area
-            type="monotone"
-            dataKey="value"
-            stroke="#7af3d0"
-            strokeWidth={1.6}
-            fill="url(#trendFill)"
-            dot={{ r: 3, fill: "#7af3d0", stroke: "var(--ink)", strokeWidth: 1.5 }}
-            activeDot={{ r: 5, fill: "#7af3d0", stroke: "var(--ink)", strokeWidth: 2 }}
-          />
-          {data.some((d) => d.target != null) && (
+        {variant === "line" ? (
+          <LineChart data={data} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="2 4" stroke="rgba(245,240,232,0.06)" />
+            <XAxis
+              dataKey="period"
+              stroke="#7a7783"
+              fontSize={10.5}
+              tickLine={false}
+              axisLine={{ stroke: "rgba(245,240,232,0.08)" }}
+              tickMargin={8}
+            />
+            <YAxis
+              stroke="#7a7783"
+              fontSize={10.5}
+              tickLine={false}
+              axisLine={false}
+              tickMargin={4}
+            />
+            <Tooltip
+              contentStyle={{
+                background: "var(--ink-soft)",
+                border: "1px solid var(--line-hi)",
+                borderRadius: 8,
+                fontSize: 12,
+                fontFamily: "var(--font-mono)",
+              }}
+              labelStyle={{ color: "var(--muted-hi)", fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase" }}
+              formatter={(v: number) => [`${v} ${unit}`, ""]}
+            />
+            <Line
+              type="monotone"
+              dataKey="value"
+              stroke="#7af3d0"
+              strokeWidth={1.8}
+              dot={{ r: 3, fill: "#7af3d0", stroke: "var(--ink)", strokeWidth: 1.5 }}
+              activeDot={{ r: 5, fill: "#7af3d0", stroke: "var(--ink)", strokeWidth: 2 }}
+            />
+            {data.some((d) => d.target != null) && (
+              <Line
+                type="monotone"
+                dataKey="target"
+                stroke="#7a7783"
+                strokeDasharray="3 4"
+                strokeWidth={1}
+                dot={false}
+              />
+            )}
+          </LineChart>
+        ) : (
+          <AreaChart data={data} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
+            <defs>
+              <linearGradient id="trendFill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%"  stopColor="#7af3d0" stopOpacity={0.35} />
+                <stop offset="100%" stopColor="#7af3d0" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="2 4" stroke="rgba(245,240,232,0.06)" />
+            <XAxis
+              dataKey="period"
+              stroke="#7a7783"
+              fontSize={10.5}
+              tickLine={false}
+              axisLine={{ stroke: "rgba(245,240,232,0.08)" }}
+              tickMargin={8}
+            />
+            <YAxis
+              stroke="#7a7783"
+              fontSize={10.5}
+              tickLine={false}
+              axisLine={false}
+              tickMargin={4}
+            />
+            <Tooltip
+              contentStyle={{
+                background: "var(--ink-soft)",
+                border: "1px solid var(--line-hi)",
+                borderRadius: 8,
+                fontSize: 12,
+                fontFamily: "var(--font-mono)",
+              }}
+              labelStyle={{ color: "var(--muted-hi)", fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase" }}
+              formatter={(v: number) => [`${v} ${unit}`, ""]}
+            />
             <Area
               type="monotone"
-              dataKey="target"
-              stroke="#7a7783"
-              strokeDasharray="3 4"
-              strokeWidth={1}
-              fill="transparent"
-              dot={false}
+              dataKey="value"
+              stroke="#7af3d0"
+              strokeWidth={1.6}
+              fill="url(#trendFill)"
+              dot={{ r: 3, fill: "#7af3d0", stroke: "var(--ink)", strokeWidth: 1.5 }}
+              activeDot={{ r: 5, fill: "#7af3d0", stroke: "var(--ink)", strokeWidth: 2 }}
             />
-          )}
-        </AreaChart>
+            {data.some((d) => d.target != null) && (
+              <Area
+                type="monotone"
+                dataKey="target"
+                stroke="#7a7783"
+                strokeDasharray="3 4"
+                strokeWidth={1}
+                fill="transparent"
+                dot={false}
+              />
+            )}
+          </AreaChart>
+        )}
       </ResponsiveContainer>
     </div>
   );

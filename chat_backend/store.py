@@ -12,6 +12,20 @@ from typing import Any
 from chatkit.store import NotFoundError, Store
 from chatkit.types import Attachment, Page, ThreadItem, ThreadMetadata
 
+#: Maximum stored items per thread. The agent's context window already
+#: only loads the last ~20 items per turn, but without a cap the store
+#: itself grows unbounded across long sessions. Capping at 40 keeps
+#: roughly the last 10 user/assistant exchanges plus their tool-call
+#: items in memory (tool calls and widget items count too, so we leave
+#: a little headroom above the strict 2 × 10).
+MAX_ITEMS_PER_THREAD = 40
+
+
+def _trim(items: list[ThreadItem]) -> list[ThreadItem]:
+    if len(items) <= MAX_ITEMS_PER_THREAD:
+        return items
+    return items[-MAX_ITEMS_PER_THREAD:]
+
 
 class InMemoryStore(Store[Any]):
     def __init__(self) -> None:
@@ -45,7 +59,9 @@ class InMemoryStore(Store[Any]):
     # ---- items -----------------------------------------------------------
 
     async def add_thread_item(self, thread_id: str, item: ThreadItem, context: Any) -> None:
-        self._items.setdefault(thread_id, []).append(item)
+        items = self._items.setdefault(thread_id, [])
+        items.append(item)
+        self._items[thread_id] = _trim(items)
 
     async def save_item(self, thread_id: str, item: ThreadItem, context: Any) -> None:
         items = self._items.setdefault(thread_id, [])
@@ -54,6 +70,7 @@ class InMemoryStore(Store[Any]):
                 items[i] = item
                 return
         items.append(item)
+        self._items[thread_id] = _trim(items)
 
     async def load_item(self, thread_id: str, item_id: str, context: Any) -> ThreadItem:
         for item in self._items.get(thread_id, []):

@@ -22,7 +22,7 @@ export type GridPos = { x: number; y: number; w: number; h: number };
 
 export type Widget =
   | { id: string; kind: "kpi";       pos: GridPos; title?: string; kpiName: string; period?: string }
-  | { id: string; kind: "trend";     pos: GridPos; title?: string; kpiName: string }
+  | { id: string; kind: "trend";     pos: GridPos; title?: string; kpiName: string; variant?: "area" | "line" }
   | { id: string; kind: "gauge";     pos: GridPos; title?: string; kpiName: string; period?: string }
   | { id: string; kind: "sparkline"; pos: GridPos; title?: string; kpiName: string }
   | { id: string; kind: "heatmap";   pos: GridPos; title?: string; function_?: string }
@@ -35,7 +35,7 @@ export type WidgetKind = Widget["kind"];
 
 export type WidgetInput =
   | { kind: "kpi";       title?: string; kpiName: string; period?: string;       pos?: Partial<GridPos> }
-  | { kind: "trend";     title?: string; kpiName: string;                         pos?: Partial<GridPos> }
+  | { kind: "trend";     title?: string; kpiName: string; variant?: "area" | "line"; pos?: Partial<GridPos> }
   | { kind: "gauge";     title?: string; kpiName: string; period?: string;       pos?: Partial<GridPos> }
   | { kind: "sparkline"; title?: string; kpiName: string;                         pos?: Partial<GridPos> }
   | { kind: "heatmap";   title?: string; function_?: string;                      pos?: Partial<GridPos> }

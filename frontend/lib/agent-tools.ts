@@ -33,8 +33,9 @@ import {
   type WidgetInput,
   type WidgetKind,
 } from "./sandbox-store";
+import { appendCanvas, updateCanvas } from "./studio-state";
 
-const ROUTES = ["/", "/sandbox"] as const;
+const ROUTES = ["/", "/sandbox", "/studio"] as const;
 type Route = (typeof ROUTES)[number];
 
 const WIDGET_KINDS: WidgetKind[] = [
@@ -52,6 +53,12 @@ const WIDGET_SCHEMA = {
       type: "string",
       description:
         "For kind in {kpi, trend, gauge, sparkline}. One of the KPI names from the operations dashboard, e.g. 'Net product revenue (Zenoxitam)' or 'Batch right-first-time'.",
+    },
+    variant: {
+      type: "string",
+      enum: ["area", "line"],
+      description:
+        "For kind=trend. 'area' is the default filled-area chart; 'line' renders the same series as a line-only chart (no fill). Use 'line' when the user asks for a line chart or wants to suppress the fill.",
     },
     kpiNames: {
       type: "array",
@@ -325,6 +332,43 @@ export function buildAgentTools(): Record<string, AgentTool> {
       handler: async ({ id }) => {
         const dashId = (typeof id === "string" && id) || getSandbox().activeId;
         deleteDashboard(dashId);
+        return { ok: true };
+      },
+    },
+
+    update_canvas: {
+      description:
+        "Replace the Studio canvas with open-ended content authored by the agent — markdown text plus embedded charts. Use whenever the user wants a richer answer in the side canvas: explanations alongside charts, a tear-sheet, a written analysis, a draft document. Embedded charts use a fenced code block with the language tag `altigen-chart` whose body is a JSON widget spec.",
+      parameters: {
+        type: "object",
+        required: ["content"],
+        properties: {
+          title:   { type: "string", description: "Optional canvas title shown in the header." },
+          content: { type: "string", description: "Markdown body. May embed live charts via ```altigen-chart\\n{...}\\n``` fences (one JSON object per fence)." },
+        },
+      },
+      handler: async (args, { router }) => {
+        const title = typeof args.title === "string" ? args.title : undefined;
+        const content = typeof args.content === "string" ? args.content : "";
+        updateCanvas({ title: title ?? null, content });
+        router.push("/studio");
+        return { ok: true, length: content.length };
+      },
+    },
+
+    append_canvas: {
+      description:
+        "Append additional markdown content to the existing Studio canvas (keeps prior content). Useful for layering follow-ups onto the current canvas without rewriting it.",
+      parameters: {
+        type: "object",
+        required: ["content"],
+        properties: {
+          content: { type: "string", description: "Markdown to append. May include ```altigen-chart``` fences." },
+        },
+      },
+      handler: async ({ content }, { router }) => {
+        appendCanvas(typeof content === "string" ? content : "");
+        router.push("/studio");
         return { ok: true };
       },
     },

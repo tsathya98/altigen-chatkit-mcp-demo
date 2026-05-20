@@ -19,9 +19,13 @@ import { VoiceOverlay } from "./VoiceOverlay";
 export function AppShell() {
   const pathname = usePathname() ?? "";
   if (pathname === "/login") return null;
+  // On /studio the chat lives inline as the primary surface, so the global
+  // dock would either double up or distract — hide it. CommandPalette,
+  // AgentActivity and VoiceOverlay still mount everywhere.
+  const showDock = pathname !== "/studio";
   return (
     <>
-      <ChatDock />
+      {showDock && <ChatDock />}
       <CommandPalette />
       <AgentActivity />
       <VoiceOverlay onClose={stopVoice} />
