@@ -20,14 +20,14 @@ export function MoleculeCanvas() {
   useEffect(() => {
     // Theme-aware palette. RGB triplets so we can interpolate alpha freely.
     const isLight = theme === "light";
-    const particleRGB = isLight ? "10, 10, 11"      : "244, 239, 230";
-    const lineRGB    = isLight ? "10, 10, 11"      : "244, 239, 230";
-    const cursorRGB  = "122, 243, 208"; // mint reads on both surfaces
-    // Light mode needs a bigger alpha to register against the cream paper.
-    const dotBaseA   = isLight ? 0.32 : 0.16;
-    const dotPeakA   = isLight ? 0.95 : 0.86;
-    const lineMaxA   = isLight ? 0.30 : 0.18;
-    const cursorMaxA = isLight ? 0.70 : 0.55;
+    const particleRGB = isLight ? "22, 16, 8"        : "244, 239, 230";
+    const lineRGB    = isLight ? "22, 16, 8"        : "244, 239, 230";
+    const cursorRGB  = isLight ? "13, 122, 96"      : "122, 243, 208";
+    // Light mode needs a much bigger alpha to register against the cream paper.
+    const dotBaseA   = isLight ? 0.42 : 0.16;
+    const dotPeakA   = isLight ? 1.00 : 0.86;
+    const lineMaxA   = isLight ? 0.38 : 0.18;
+    const cursorMaxA = isLight ? 0.80 : 0.55;
 
     const canvas = canvasRef.current!;
     const ctx = canvas.getContext("2d")!;
@@ -136,7 +136,7 @@ export function MoleculeCanvas() {
             ctx.moveTo(a.x, a.y);
             ctx.lineTo(b.x, b.y);
             ctx.strokeStyle = `rgba(${lineRGB}, ${alpha})`;
-            ctx.lineWidth = isLight ? 0.8 : 0.6;
+            ctx.lineWidth = isLight ? 1.0 : 0.6;
             ctx.stroke();
           }
         }

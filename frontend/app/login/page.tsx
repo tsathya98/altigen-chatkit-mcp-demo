@@ -53,11 +53,7 @@ export default function LoginPage() {
       <div className="fixed inset-0 -z-0 grid-paper opacity-[0.18] pointer-events-none" />
       <div className="fixed inset-0 -z-0 noise opacity-[0.6] pointer-events-none mix-blend-overlay" />
       <div
-        className="fixed inset-0 -z-0 pointer-events-none"
-        style={{
-          background:
-            "radial-gradient(60% 50% at 80% 20%, rgba(122,243,208,0.07), transparent 70%), radial-gradient(70% 60% at 10% 90%, rgba(180,160,255,0.05), transparent 70%)",
-        }}
+        className="fixed inset-0 -z-0 pointer-events-none login-radial"
       />
 
       {/* Top frame ----------------------------------------------------- */}
@@ -219,6 +215,18 @@ export default function LoginPage() {
         .mask-fade-x {
           -webkit-mask-image: linear-gradient(90deg, transparent, black 10%, black 90%, transparent);
                   mask-image: linear-gradient(90deg, transparent, black 10%, black 90%, transparent);
+        }
+        /* Atmospheric radial — flips with theme so the colour wash registers
+         * on both ink and bone backgrounds. */
+        .login-radial {
+          background:
+            radial-gradient(60% 50% at 80% 20%, rgba(122,243,208,0.07), transparent 70%),
+            radial-gradient(70% 60% at 10% 90%, rgba(180,160,255,0.05), transparent 70%);
+        }
+        :global(html[data-theme="light"]) .login-radial {
+          background:
+            radial-gradient(60% 50% at 80% 20%, rgba(13,122,96,0.10), transparent 70%),
+            radial-gradient(70% 60% at 10% 90%, rgba(85,53,144,0.08), transparent 70%);
         }
       `}</style>
     </main>
