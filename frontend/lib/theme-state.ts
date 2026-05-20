@@ -28,9 +28,8 @@ function init(): void {
     const stored = window.localStorage.getItem(KEY);
     if (stored === "light" || stored === "dark") {
       theme = stored;
-    } else if (window.matchMedia?.("(prefers-color-scheme: light)").matches) {
-      theme = "light";
     }
+    // No system-preference fallback — dark is the intended default.
   } catch {
     /* ignore */
   }

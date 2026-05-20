@@ -1,18 +1,34 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { useTheme } from "@/lib/theme-state";
 
 /**
  * Cursor-reactive particle field. Particles drift slowly through a dark
  * "buffer", connect with thin lines when they're near each other, and
  * brighten as the cursor approaches — a microscope-and-molecule feel.
  *
- * Pure canvas. No deps. ~60 lines of actual logic.
+ * Colours flip with the theme: bone-cream particles on dark, near-ink
+ * particles on cream. The mint cursor accent stays for both.
+ *
+ * Pure canvas. No deps.
  */
 export function MoleculeCanvas() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [theme] = useTheme();
 
   useEffect(() => {
+    // Theme-aware palette. RGB triplets so we can interpolate alpha freely.
+    const isLight = theme === "light";
+    const particleRGB = isLight ? "10, 10, 11"      : "244, 239, 230";
+    const lineRGB    = isLight ? "10, 10, 11"      : "244, 239, 230";
+    const cursorRGB  = "122, 243, 208"; // mint reads on both surfaces
+    // Light mode needs a bigger alpha to register against the cream paper.
+    const dotBaseA   = isLight ? 0.32 : 0.16;
+    const dotPeakA   = isLight ? 0.95 : 0.86;
+    const lineMaxA   = isLight ? 0.30 : 0.18;
+    const cursorMaxA = isLight ? 0.70 : 0.55;
+
     const canvas = canvasRef.current!;
     const ctx = canvas.getContext("2d")!;
     let raf = 0;
@@ -102,7 +118,7 @@ export function MoleculeCanvas() {
         // dot
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.r + t * 1.4, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(244, 239, 230, ${0.16 + t * 0.7})`;
+        ctx.fillStyle = `rgba(${particleRGB}, ${dotBaseA + t * (dotPeakA - dotBaseA)})`;
         ctx.fill();
       }
 
@@ -115,12 +131,12 @@ export function MoleculeCanvas() {
           const dy = a.y - b.y;
           const dsq = dx * dx + dy * dy;
           if (dsq < Rsq) {
-            const alpha = (1 - dsq / Rsq) * 0.18;
+            const alpha = (1 - dsq / Rsq) * lineMaxA;
             ctx.beginPath();
             ctx.moveTo(a.x, a.y);
             ctx.lineTo(b.x, b.y);
-            ctx.strokeStyle = `rgba(244, 239, 230, ${alpha})`;
-            ctx.lineWidth = 0.6;
+            ctx.strokeStyle = `rgba(${lineRGB}, ${alpha})`;
+            ctx.lineWidth = isLight ? 0.8 : 0.6;
             ctx.stroke();
           }
         }
@@ -133,19 +149,19 @@ export function MoleculeCanvas() {
           const dy = mouse.y - p.y;
           const dsq = dx * dx + dy * dy;
           if (dsq < RcursorSq) {
-            const alpha = (1 - dsq / RcursorSq) * 0.55;
+            const alpha = (1 - dsq / RcursorSq) * cursorMaxA;
             ctx.beginPath();
             ctx.moveTo(mouse.x, mouse.y);
             ctx.lineTo(p.x, p.y);
-            ctx.strokeStyle = `rgba(122, 243, 208, ${alpha})`;
-            ctx.lineWidth = 0.8;
+            ctx.strokeStyle = `rgba(${cursorRGB}, ${alpha})`;
+            ctx.lineWidth = isLight ? 1.0 : 0.8;
             ctx.stroke();
           }
         }
-        // cursor halo
+        // cursor halo — a bit stronger on light so it actually shows
         const grad = ctx.createRadialGradient(mouse.x, mouse.y, 0, mouse.x, mouse.y, Rcursor);
-        grad.addColorStop(0, "rgba(122,243,208,0.10)");
-        grad.addColorStop(1, "rgba(122,243,208,0)");
+        grad.addColorStop(0, `rgba(${cursorRGB}, ${isLight ? 0.18 : 0.10})`);
+        grad.addColorStop(1, `rgba(${cursorRGB}, 0)`);
         ctx.fillStyle = grad;
         ctx.fillRect(0, 0, w, h);
       }
@@ -160,7 +176,7 @@ export function MoleculeCanvas() {
       window.removeEventListener("mouseleave", onLeave);
       window.removeEventListener("resize", onResize);
     };
-  }, []);
+  }, [theme]);
 
   return (
     <canvas

@@ -2,11 +2,12 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { ArrowRight, ShieldCheck } from "lucide-react";
+import { ArrowRight, Moon, ShieldCheck, Sun } from "lucide-react";
 import { signIn, readIdentity } from "@/lib/auth";
 import { Logo } from "@/components/Logo";
 import { UtcClock } from "@/components/UtcClock";
 import { StatusPill } from "@/components/StatusPill";
+import { useTheme } from "@/lib/theme-state";
 import { MoleculeCanvas } from "./MoleculeCanvas";
 import { CursorReadout } from "./CursorReadout";
 
@@ -27,6 +28,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState("sathya@altigen.health");
   const [pass, setPass] = useState("");
   const [busy, setBusy] = useState(false);
+  const [theme, setTheme] = useTheme();
 
   useEffect(() => {
     if (readIdentity()) router.replace("/");
@@ -64,6 +66,14 @@ export default function LoginPage() {
         <div className="flex items-center gap-6">
           <StatusPill label="System Online" tone="mint" />
           <UtcClock />
+          <button
+            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+            title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+            aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+            className="p-1.5 rounded-md text-[var(--muted-hi)] hover:text-[var(--bone)] hover:bg-[var(--surface-hi)] transition-colors"
+          >
+            {theme === "dark" ? <Sun size={14} /> : <Moon size={14} />}
+          </button>
         </div>
       </header>
 

@@ -1,12 +1,13 @@
 "use client";
 
-import { LogOut, Search } from "lucide-react";
+import { LogOut, Moon, Search, Sun } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Logo } from "./Logo";
 import { StatusPill } from "./StatusPill";
 import { UtcClock } from "./UtcClock";
 import { signOut, type Identity } from "@/lib/auth";
+import { useTheme } from "@/lib/theme-state";
 
 export function DashboardHeader({
   identity,
@@ -19,6 +20,7 @@ export function DashboardHeader({
 }) {
   const router = useRouter();
   const pathname = usePathname();
+  const [theme, setTheme] = useTheme();
   const initials =
     identity?.id?.split("@")[0]?.slice(0, 2).toUpperCase() ?? "—";
 
@@ -75,6 +77,15 @@ export function DashboardHeader({
             pulsing={isFetching}
           />
           <UtcClock />
+
+          <button
+            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+            title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+            aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+            className="p-1.5 rounded-md text-[var(--muted-hi)] hover:text-[var(--bone)] hover:bg-[var(--surface-hi)] transition-colors"
+          >
+            {theme === "dark" ? <Sun size={14} /> : <Moon size={14} />}
+          </button>
 
           {identity && (
             <div className="flex items-center gap-2 pl-3 border-l border-[var(--line-hi)]">
