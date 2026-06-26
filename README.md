@@ -123,3 +123,4 @@ demo/
 | `openai-agents` | ≥ 0.14.8 | `MCPServerStreamableHttp`, `FileSearchTool`, sandbox-agents beta |
 | `openai-chatkit` | ≥ 1.6.3 | Python backend SDK (`ChatKitServer`, `MemoryStore`) |
 | `@openai/chatkit-react` | ^ 1.5.0 | self-hosted requires `domainKey` in `useChatKit({api})` |
+
